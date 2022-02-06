@@ -1,0 +1,529 @@
+package paganiniK;
+
+/**
+ * Creates dots and calculates critical value of dots
+ */
+public class Dot {
+    /**
+     * A dots coordinate should never change
+     */
+    private final double xCoord;
+    private final double yCoord;
+
+    /**
+     * Creates a dot
+     * @param xCoord
+     * @param yCoord
+     */
+    public Dot(double xCoord, double yCoord){
+        this.xCoord = xCoord;
+        this.yCoord = yCoord;
+    }
+
+    /**
+     *  X coordinate getter
+     * @return x coordinate
+     */
+    public double getxCoord() {
+        return xCoord;
+    }
+
+    /**
+     * Y coordinate getter
+     * @return Y coordinate
+     */
+    public double getyCoord() {
+        return yCoord;
+    }
+
+
+    /**
+     * Calculates distance between dots
+     * @param head
+     * @param tail
+     * @return distance between two dots
+     */
+    private static double calculateDistance(Dot head, Dot tail){
+        return Math.sqrt(Math.pow(head.getxCoord()-tail.getxCoord(), 2) +
+                Math.pow(head.getyCoord()-tail.getyCoord(), 2));
+    }
+
+    /**
+     * Calculates critical value
+     * @param previous
+     * @param next
+     * @return critical value of each dot
+     */
+    public double calculateCriticalValue(Dot previous, Dot next) {
+        double distance12 = calculateDistance(previous, this);
+        double distance23 = calculateDistance(this, next);
+        double distance13 = calculateDistance(previous, next);
+        return (distance12 + distance23 - distance13);
+    }
+
+}
+
+package paganiniK;
+
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.paint.Color;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Scanner;
+
+/**
+ * Creates a picture out of dots and connects those dots with lines
+ */
+public class Picture {
+
+    /**
+     * keeps track of all the dots in a picture
+     */
+    private List<Dot> dots;
+
+    private final double DOT_WIDTH = 6;
+
+    /**
+     * Creates a new List
+     * @param nullList
+     */
+    public Picture(List<Dot> nullList){
+        dots = nullList;
+    }
+
+    /**
+     * copies a picture to a new picture
+     * @param original
+     * @param nullList
+     */
+    public Picture(Picture original, List<Dot> nullList){
+        nullList.addAll(original.dots);
+        dots = nullList;
+    }
+
+
+    /**
+     * getter
+     * @return number of dots
+     */
+    public int getNumDots(){
+        return dots.size();
+    }
+
+    /**
+     * Loads a .dot file
+     * @param path
+     * @throws IOException
+     */
+    public void load(Path path) throws IOException {
+        try(Scanner in = new Scanner(Files.newInputStream(path))){
+            dots.clear();
+            while(in.hasNextLine()){
+                String[] values = in.nextLine().split(",");
+                double xCoord = Double.parseDouble(values[0].trim());
+                double yCoord = Double.parseDouble(values[1].trim());
+                if ((xCoord >=0 && xCoord <=1) && (yCoord >=0 && yCoord <=1)){
+                    dots.add(new Dot(xCoord, yCoord));
+
+                }
+            }
+        }
+    }
+
+    /**
+     * Saves a .dot file
+     * @param path
+     * @throws IOException
+     */
+    public void save(Path path) throws IOException {
+        try(PrintWriter out = new PrintWriter(Files.newOutputStream(path))){
+            for(Dot dot : dots){
+                out.println(dot.getxCoord() + "," + dot.getyCoord());
+            }
+        }
+    }
+
+    /**
+     * Draws dots
+     * @param canvas
+     */
+    public void drawDots(Canvas canvas){
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        gc.setFill(Color.BLUE);
+
+        double ratio = canvas.getHeight();
+        if(ratio > canvas.getWidth()){
+            ratio = canvas.getWidth();
+        }
+        for(Dot dot : dots){
+            gc.fillOval(dot.getxCoord() * ratio - DOT_WIDTH /2,
+                    Math.abs(dot.getyCoord() * ratio - canvas.getHeight()) - DOT_WIDTH /2,
+                    DOT_WIDTH, DOT_WIDTH);
+        }
+    }
+
+    /**
+     * draws lines between the dots
+     * @param canvas
+     */
+    public void drawLines(Canvas canvas){
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        gc.setFill(Color.BLUE);
+        gc.setStroke(Color.BLUE);
+        double ratio = canvas.getHeight();
+        if(ratio > canvas.getWidth()){
+            ratio = canvas.getWidth();
+        }
+        if(dots.size() > 0){
+
+            gc.moveTo(dots.get(0).getxCoord(), dots.get(0).getyCoord());
+            gc.beginPath();
+            for(int i = 1; i < dots.size(); ++i){
+                gc.lineTo(dots.get(i).getxCoord() * ratio,
+                        Math.abs(dots.get(i).getyCoord() * ratio - canvas.getHeight()));
+            }
+            gc.lineTo(dots.get(0).getxCoord() * ratio,
+                    Math.abs(dots.get(0).getyCoord() * ratio - canvas.getHeight()));
+            gc.closePath();
+            gc.stroke();
+        }
+
+    }
+
+
+    /**
+     * Removes dotds to the number of desired dots
+     * @param numDots
+     * @throws IllegalArgumentException
+     */
+    public void removeDots(int numDots) throws IllegalArgumentException{
+        if(numDots < 3){
+            throw new IllegalArgumentException();
+        }
+        while(numDots < dots.size()){
+            double lowcrit = dots.get(0).calculateCriticalValue(dots.get(dots.size() - 1),
+                    dots.get(1));
+            int indexLowCrit = 0;
+            for(int i = 1; i < dots.size() - 1; ++i){
+                double currentLowCrit = dots.get(i).calculateCriticalValue(dots.get(i-1),
+                        dots.get(i+1));
+
+                if(currentLowCrit < lowcrit){
+                    lowcrit = currentLowCrit;
+                    indexLowCrit = i;
+                }
+
+            }
+            double lastLowCrit = dots.get(dots.size() - 1)
+                    .calculateCriticalValue(dots.get(dots.size() - 2), dots.get(0));
+            if(lastLowCrit < lowcrit){
+                lowcrit = lastLowCrit;
+                indexLowCrit = dots.size() - 1;
+            }
+            dots.remove(indexLowCrit);
+
+        }
+    }
+}
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.canvas.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+
+<StackPane xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="paganiniK.DotPictureGUIController">
+   <children>
+      <VBox prefHeight="650.0" prefWidth="600.0">
+          <children>
+              <MenuBar prefHeight="0.0" prefWidth="400.0">
+                  <menus>
+                      <Menu mnemonicParsing="false" text="File">
+                          <items>
+                              <MenuItem mnemonicParsing="false" onAction="#open" text="Open" />
+                              <MenuItem mnemonicParsing="false" onAction="#close" text="Close" />
+                              <MenuItem fx:id="save" disable="true" mnemonicParsing="false" onAction="#save" text="Save" />
+                          </items>
+                      </Menu>
+                      <Menu fx:id="draw" disable="true" mnemonicParsing="false" text="Draw">
+                          <items>
+                              <MenuItem mnemonicParsing="false" onAction="#drawOnlyLines" text="Lines Only" />
+                              <MenuItem mnemonicParsing="false" onAction="#drawOnlyDots" text="Dots Only" />
+                              <MenuItem mnemonicParsing="false" onAction="#changeNumDots" text="Change Num Dots" />
+                          </items>
+                      </Menu>
+                  </menus>
+              </MenuBar>
+              <Canvas fx:id="canvas" blendMode="RED" height="600.0" width="600.0" />
+              <Label fx:id="numDotsLabel" alignment="CENTER" prefHeight="25.0" prefWidth="600.0" text="Number of Dots: 0" />
+          </children>
+      </VBox>
+   </children>
+</StackPane>
+
+
+
+package paganiniK;
+
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.control.*;
+import javafx.stage.FileChooser;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.InputMismatchException;
+import java.util.Optional;
+
+/**
+ * Course CS1011-051
+ * Fall 2020-2021
+ * DotPictureGUI purpose:
+ *
+ * @author paganinik
+ * @version created on 3/22/2021 at 5:32 PM
+ */
+public class DotPictureGUIController {
+    @FXML
+    private Canvas canvas;
+
+    @FXML
+    private Alert alert;
+
+    @FXML
+    private Menu draw;
+
+    @FXML
+    private Label numDotsLabel;
+
+    @FXML
+    private MenuItem save;
+
+    private Picture picture;
+
+    private Picture origPic;
+
+    /**
+     * Helper method to clear the canvas
+     * @param canvas
+     */
+    private void clearCanvas(Canvas canvas){
+        canvas.getGraphicsContext2D().clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+    }
+
+    /**
+     * Updates num labels
+     */
+    private void updateNumLabels(){
+        numDotsLabel.setText("Number of Dots: " + picture.getNumDots());
+    }
+
+
+    /**
+     * Opens a dot file
+     * @param actionEvent
+     */
+    public void open(ActionEvent actionEvent) {
+        //FileChooser initialisation
+        FileChooser fc = new FileChooser();
+        File fileDir = new File("data");
+        fc.setInitialDirectory(fileDir);
+        fc.setTitle("file chooser");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Dot files", "*.dot"));
+
+        File file = fc.showOpenDialog(null);
+        if(file != null){
+            try{
+
+                Path path = file.toPath();
+                origPic = new Picture(new ArrayList<Dot>());
+                origPic.load(path);
+                picture = origPic;
+                clearCanvas(canvas);
+                picture.drawDots(canvas);
+                picture.drawLines(canvas);
+                draw.setDisable(false);
+                save.setDisable(false);
+                updateNumLabels();
+
+            } catch(NumberFormatException e){
+                System.out.println("number format error");
+                alert.setTitle("ERROR");
+                alert.setContentText("Number format error");
+                alert.showAndWait();
+
+
+            } catch (IOException e) {
+                System.out.println("Input / Output error");
+                alert.setTitle("ERROR");
+                alert.setContentText("Input / Output error");
+                alert.showAndWait();
+            }
+        }
+
+
+    }
+
+    /**
+     * Closes the GUI
+     * @param actionEvent
+     */
+    public void close(ActionEvent actionEvent) {
+        Platform.exit();
+    }
+
+    /**
+     * saves a .dot file
+     * @param actionEvent
+     */
+    public void save(ActionEvent actionEvent) {
+        //FileChooser initialisation
+        FileChooser fc = new FileChooser();
+        File fileDir = new File("data");
+        fc.setInitialDirectory(fileDir);
+        fc.setTitle("Save file");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Dot files", "*.dot"));
+        File file = fc.showSaveDialog(null);
+
+        if(file != null){
+
+            try{
+                Path path = file.toPath();
+                picture.save(path);
+
+
+            } catch (IOException e) {
+                alert.setTitle("Trouble saving file...");
+                alert.setContentText("Sorry the picture could not be saved.");
+                alert.showAndWait();
+
+            }
+
+        }
+    }
+
+    /**
+     * Draws only lines
+     * @param actionEvent
+     */
+    public void drawOnlyLines(ActionEvent actionEvent) {
+        try {
+            clearCanvas(canvas);
+            picture.drawLines(canvas);
+
+        } catch(NullPointerException e){
+            System.out.println("Error drawing lines");
+            alert.setContentText("Error drawing lines");
+            alert.setTitle("Error");
+            alert.showAndWait();
+        }
+    }
+
+    /**
+     * Draws only the dots
+     * @param actionEvent
+     */
+    public void drawOnlyDots(ActionEvent actionEvent) {
+        try {
+            clearCanvas(canvas);
+            picture.drawDots(canvas);
+
+        } catch(NullPointerException e){
+            System.out.println("Error drawing dots");
+            alert.setContentText("Error drawing dots");
+            alert.setTitle("Error");
+            alert.showAndWait();
+        }
+    }
+
+    /**
+     * Changes the number of dots in the picture
+     * @param actionEvent
+     */
+    public void changeNumDots(ActionEvent actionEvent) {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Number of Dots");
+        dialog.setContentText("Number of Dots: ");
+        dialog.setHeaderText("How many dots would you like");
+        Optional<String> input = dialog.showAndWait();
+        try{
+            int numDots = Integer.parseInt(input.get());
+            picture = new Picture(origPic, new ArrayList<>());
+            picture.removeDots(numDots);
+            clearCanvas(canvas);
+            picture.drawLines(canvas);
+            picture.drawDots(canvas);
+            updateNumLabels();
+
+        } catch(NullPointerException | InputMismatchException | NumberFormatException e){
+            System.out.println("Error in number of dots or ");
+            alert.setContentText("Error drawing dots");
+            alert.setTitle("Error");
+            alert.showAndWait();
+        }
+
+    }
+}
+
+
+
+package paganiniK;
+/*
+ *  Course: CS1011-051
+ *  Fall 2020-2021
+ *  File header contains class DotPictureStart
+ *  Name: paganinik
+ *  Created 3/22/2021
+ */
+
+import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+
+import java.io.IOException;
+
+/**
+ * Course CS1011-051
+ * Fall 2020-2021
+ * DotPictureStart purpose: launch the gui
+ *
+ * @author paganinik
+ * @version created on 3/22/2021 at 8:36 PM
+ */
+
+public class DotPictureStart extends Application {
+    /**
+     * Start method of the JavaFX program
+     * @param stage the stage
+     * @throws IOException if there is a problem loading Dot2Dot.fxml
+     */
+    @Override
+    public void start(Stage stage) throws IOException {
+        Parent root = FXMLLoader.load(getClass().getResource("DotPictureGUI.fxml"));
+        stage.setTitle("Dot to Dot");
+        stage.setResizable(false);
+        stage.setScene(new Scene(root));
+        stage.show();
+
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
+
